@@ -1,0 +1,206 @@
+function isPageDev() {
+    return localStorage.getItem("dev") ? "dev" : "";
+}
+
+function isButtonDev() {
+    return localStorage.getItem("dev") ? "" : "unchecked";
+}
+
+function removeExtension(extensionId) {
+    chrome.management.uninstall(extensionId);
+}
+
+function blobToDataURL(blob) {
+    return new Promise(((resolve, reject) => {
+        var reader = new FileReader();
+        reader.onload = function () {
+            resolve(reader.result);
+        };
+        reader.onerror = function () {
+            reject(reader.error);
+        };
+        reader.readAsDataURL(blob);
+    }));
+}
+
+async function getIconFromExtension(extensionId) {
+    if (!extensionId) return "";
+    var response = await fetch("https://chrome.google.com/webstore/detail/" + extensionId);
+    var text = await response.text();
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(text, "text/html");
+    if (!doc.querySelector("img.e-f-s[src]")) return "";
+    var iconUrl = doc.querySelector("img.e-f-s[src]").src;
+    var iconResponse = await fetch(iconUrl);
+    var blob = await iconResponse.blob();
+    return await blobToDataURL(blob);
+}
+
+function toggleExtension(button, extensionId) {
+    if (button.hasAttribute("unchecked")) {
+        chrome.management.setEnabled(extensionId, true);
+    } else {
+        chrome.management.setEnabled(extensionId, false);
+    }
+}
+
+function toggle(button) {
+    if (button.hasAttribute("unchecked")) {
+        button.removeAttribute("unchecked");
+    } else {
+        button.setAttribute("unchecked", "");
+    }
+}
+
+function togglePress(button, state) {
+    if (state === "down") {
+        button.children[1].children[0].children[0].setAttribute("open", "");
+    } else {
+        setTimeout(() => {
+            button.children[1].children[0].children[0].style.display = "none";
+            button.children[1].children[0].children[0].removeAttribute("open");
+            button.children[1].children[0].children[0].style.display = "initial";
+        }, 80);
+    }
+}
+
+function devMode() {
+    if (document.body.hasAttribute("dev")) {
+        document.body.removeAttribute("dev");
+        localStorage.removeItem("dev");
+    } else {
+        document.body.setAttribute("dev", "");
+        localStorage.setItem("dev", "true");
+    }
+}
+
+function addExtension(extension) {
+    var items = document.getElementById("items");
+    var item = document.createElement("div");
+    item.className = "item";
+    item.setAttribute("data-id", extension.id);
+    if (extension.managed) item.setAttribute("managed", "");
+
+    var itemMain = document.createElement("div");
+    itemMain.className = "item-main";
+
+    var itemImgWrapper = document.createElement("div");
+    itemImgWrapper.className = "item-img-wrapper";
+
+    var itemImg = document.createElement("img");
+    itemImg.className = "item-img";
+    itemImg.src = extension.logo;
+
+    var itemImgSource = document.createElement("div");
+    itemImgSource.className = "item-img-source";
+    itemImgSource.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 24 24" class="item-img-source-icon"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z" style="fill: currentColor"></path></svg>';
+    itemImgWrapper.appendChild(itemImg);
+    itemImgWrapper.appendChild(itemImgSource);
+    itemMain.appendChild(itemImgWrapper);
+
+    var itemContent = document.createElement("div");
+    itemContent.className = "item-content";
+
+    var itemTitleAndVersion = document.createElement("div");
+    itemTitleAndVersion.className = "item-title-and-version";
+
+    var itemTitle = document.createElement("div");
+    itemTitle.className = "item-title";
+    itemTitle.innerText = extension.title;
+
+    var itemVersion = document.createElement("div");
+    itemVersion.className = "item-version";
+    itemVersion.innerText = extension.version;
+
+    itemTitleAndVersion.appendChild(itemTitle);
+    itemTitleAndVersion.appendChild(itemVersion);
+
+    itemContent.appendChild(itemTitleAndVersion);
+
+    var itemDescriptionOverflow = document.createElement("div");
+    itemDescriptionOverflow.className = "item-description-overflow";
+
+    var itemDescription = document.createElement("div");
+    itemDescription.className = "item-description";
+    itemDescription.innerText = extension.description;
+
+    itemDescriptionOverflow.appendChild(itemDescription);
+    itemContent.appendChild(itemDescriptionOverflow);
+
+    var itemId = document.createElement("div");
+    itemId.className = "item-id";
+    itemId.innerText = "ID: " + extension.id;
+
+    itemContent.appendChild(itemId);
+
+    itemMain.appendChild(itemContent);
+    item.appendChild(itemMain);
+
+    var itemButtons = document.createElement("div");
+    itemButtons.className = "item-buttons";
+
+    var itemToggle = document.createElement("div");
+    itemToggle.className = "item-toggle";
+    itemToggle.setAttribute("onclick", "toggleExtension(this, '" + extension.id + "');toggle(this)");
+    itemToggle.setAttribute("onmousedown", "togglePress(this, 'down')");
+    itemToggle.setAttribute("onmouseup", "togglePress(this, 'up')");
+    if (!extension.enabled) itemToggle.setAttribute("unchecked", "");
+
+    var itemBar = document.createElement("div");
+    itemBar.className = "item-bar";
+
+    var itemKnob = document.createElement("div");
+    itemKnob.className = "item-knob";
+
+    var itemRipple = document.createElement("div");
+    itemRipple.className = "item-ripple";
+
+    var ripple = document.createElement("div");
+    ripple.className = "ripple";
+    itemRipple.appendChild(ripple);
+
+    itemKnob.appendChild(itemRipple);
+    itemToggle.appendChild(itemBar);
+    itemToggle.appendChild(itemKnob);
+    itemButtons.appendChild(itemToggle);
+    item.appendChild(itemButtons);
+
+    items.appendChild(item);
+}
+
+async function getExtensions() {
+    chrome.management.getAll((extensions) => {
+        for (let extension of extensions) {
+            if (!extension.isApp) {
+                addExtension({
+                    title: extension.name,
+                    version: extension.version,
+                    description: extension.description,
+                    id: extension.id,
+                    logo: "",
+                    managed: extension.installType === "admin",
+                    enabled: extension.enabled
+                });
+            }
+        }
+    });
+    setTimeout(() => {
+        setIcons();
+    }, 100);
+}
+
+async function setIcons() {
+    var items = document.querySelectorAll(".items .item");
+    for (let item of items) {
+        try {
+            let extensionId = item.dataset.id;
+            let iconSrc = await getIconFromExtension(extensionId);
+            item.querySelector(".item-main .item-img-wrapper .item-img").src = iconSrc;
+        } catch (error) {
+            console.error(error);
+        }
+    }
+}
+
+document.documentElement.innerHTML = "<html><head><link rel=\"icon\" href=\"data:image/svg+xml,<svg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' version='1.1'><path fill='white' d='M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z'></path></svg>\">\n<title>Ingot</title>\n</head>\n<body " + isPageDev() + '>\n<div class="nav">\n<div class="nav-left">\n<div class="nav-title">Ingot</div>\n<div class="nav-right">\n<div class="nav-dev">Developer mode</div>\n<div ' + isButtonDev() + ' class="item-toggle item-toggle-dev" id="toggle" onclick="toggle(this);devMode()" onmousedown="togglePress(this, \'down\')" onmouseup="togglePress(this, \'up\')">\n<div class="item-bar"></div>\n<div class="item-knob">\n<div class="item-ripple">\n<div class="ripple"></div>\n</div>\n</div>\n</div>\n</div>\n</div>\n</div>\n\n<div class="items-main">\n<div class="items" id="items">\n</div>\n</div>\n\n<style>\n@import url(\'https://fonts.googleapis.com/css2?family=Roboto&display=swap\');\n\n@import url(\'https://fonts.googleapis.com/css2?family=Roboto:wght@500&display=swap\');\n\n* {\n\tfont-family: "Roboto";\n}\n\n:root {\n\tcolor-scheme: dark;\n}\n\nbody {\n\tbackground: #202124;\n\tmargin: 0;\n\tpadding: 0;\n}\n\n.nav {\n\twidth: 100%;\n\theight: 55px;\n\tbackground: #292a2d;\n\tborder-bottom: 1px solid rgba(255, 255, 255, .1);\n\tposition: fixed;\n\ttop: 0;\n\tright: 0;\n\tleft: 0;\n\tz-index: 9;\n}\n\n.nav-left {\n\talign-items: center;\n\tbox-sizing: border-box;\n\tdisplay: flex;\n\tpadding-inline-start: calc(12px + 6px);\n\theight: 55px;\n}\n\n.nav-right {\n\tposition: absolute;\n\tright: 0;\n\tleft: 0;\n\tdisplay: flex;\n\tjustify-content: flex-end;\n}\n\n.nav-dev {\n\tcolor: rgb(154, 160, 166);\n\tfont-size: 13px;\n\tmargin-inline-end: calc(16px + 30px);\n\tmargin-bottom: 3px;\n}\n\n.item-toggle-dev {\n\ttransform: translateX(-30px);\n}\n\n.nav-title {\n\tcolor: rgb(232, 234, 237);\n\tfont-size: 22px;\n\tletter-spacing: .25px;\n\tline-height: normal;\n\tmargin-inline-start: 6px;\n\tpadding-inline-end: 12px;\n\tfont-weight: 500;\n}\n\n.items-main {\n\tmin-width: 400px;\n\tpadding: 24px 60px 64px;\n\tmargin-top: 57px;\n}\n\n.items {\n\tdisplay: grid;\n\tgrid-column-gap: 12px;\n\tgrid-row-gap: 12px;\n\tgrid-template-columns: repeat(auto-fill, 400px);\n\tjustify-content: center;\n\tmargin: auto;\n}\n\n.item {\n\theight: 160px;\n\twidth: 400px;\n\tbackground: #292a2d;\n\tborder-radius: 8px;\n\tbox-shadow: rgba(0, 0, 0, .3) 0 1px 2px 0, rgba(0, 0, 0, .15) 0 2px 6px 2px;\n}\n\n.item-main {\n\tdisplay: flex;\n\tflex: 1;\n\tmin-height: 0;\n\tpadding: 16px 20px;\n\theight: 80px;\n}\n\n.item-img-wrapper {\n\talign-self: flex-start;\n\tdisplay: flex;\n\tpadding: 6px;\n\tposition: relative;\n}\n\n.item-img {\n\theight: 36px;\n\twidth: 36px;\n\tborder-radius: 6px;\n\tbackground: #202124;\n\ttext-indent: -10000px;\n}\n\n.item-img-source {\n\talign-items: center;\n\tbackground: #f1592b;\n\tborder-radius: 50%;\n\tbox-shadow: 0 1px 1px 0 rgb(0 0 0 / 22%), 0 2px 2px 0 rgb(0 0 0 / 12%);\n\tdisplay: flex;\n\theight: 22px;\n\tjustify-content: center;\n\twidth: 22px;\n\tmargin-inline-start: 24px;\n\tmargin-top: 24px;\n\tposition: absolute;\n\tbottom: 0;\n\tleft: 0;\n}\n\n.item-content {\n\tdisplay: flex;\n\tflex-direction: column;\n\tjustify-content: center;\n\tmargin-inline-start: 14px;\n\tmin-height: 0;\n\twidth: calc(100% - 62px);\n}\n\n.item-title-and-version {\n\tdisplay: flex;\n\tjustify-content: space-between;\n}\n\n.item-title {\n\tcolor: #f4f4f4;\n\tfont-size: 18px;\n\tfont-weight: 500;\n\tline-height: 1.2;\n\toverflow: hidden;\n\ttext-overflow: ellipsis;\n\twhite-space: nowrap;\n}\n\n.item-version {\n\tcolor: #9a9e9f;\n\tfont-size: 14px;\n}\n\n.item-description-overflow {\n\toverflow: hidden;\n\twidth: 100%;\n\theight: 100%;\n}\n\n.item-description {\n\tcolor: #9a9e9f;\n\tfont-size: 14px;\n\toverflow: hidden;\n\ttext-overflow: ellipsis;\n\twhite-space: nowrap;\n}\n\n.item-id {\n\tcolor: #9a9e9f;\n\tfont-size: 12px;\n\tmargin-top: 10px;\n}\n\n.item-buttons {\n\talign-items: center;\n\tdisplay: flex;\n\tjustify-content: flex-end;\n\tmargin-top: 8px;\n}\n\n.item-toggle {\n\tcursor: pointer;\n\tposition: relative;\n\tuser-select: none;\n}\n\n.item-toggle[unchecked] .item-bar {\n\tbackground: #9a9e9f;\n}\n\n.item-toggle .item-bar {\n\tbackground: #f1592b;\n}\n\n.item-knob {\n\tbackground: #fff;\n\tborder-radius: 50%;\n\tbox-shadow: 0 1px 1px 0 rgba(0, 0, 0, .22), 0 2px 2px 0 rgba(0, 0, 0, .12);\n\theight: 30px;\n\twidth: 30px;\n}\n\n.item-ripple {\n\tbackground: rgba(0, 0, 0, .1);\n\tborder-radius: 50%;\n\theight: 100%;\n\tposition: absolute;\n\ttransition: transform .3s ease-out;\n\twidth: 100%;\n\tz-index: 0;\n}\n\n.ripple {\n\tbackground: rgba(255, 255, 255, .3);\n\tborder-radius: 50%;\n\theight: 200%;\n\tposition: absolute;\n\ttransform: scale(0);\n\twidth: 200%;\n\ttransition: transform .3s ease-out, opacity .4s ease-out;\n\tz-index: 0;\n}\n\n.item-toggle[unchecked] .item-ripple {\n\ttransform: scale(0);\n}\n\n.item-toggle:not([unchecked]) .item-ripple {\n\ttransform: scale(2.4);\n}\n\n.item-toggle:not([unchecked]) .ripple {\n\topacity: 0;\n\ttransition: none;\n}\n\n.item-toggle:hover .ripple {\n\topacity: 1;\n}\n\n.item-toggle[unchecked]:hover .item-bar {\n\tbackground: #9a9e9f;\n}\n\n.item-toggle:hover .item-bar {\n\tbackground: #f1592b;\n}\n</style>\n</body>\n</html>';
+getExtensions();
